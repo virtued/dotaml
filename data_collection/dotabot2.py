@@ -54,42 +54,46 @@ def process_match_details(match_id):
 
 def main():
     '''The main entry point of dotabot.'''
-    start_match_id = None
+    valid_mode = [0,1,2,3,4,5]
+    mode_start_id = {0:None, 1:None, 2:None, 3:None, 4:None, 5:None}
     while True:
         # Note: GetMatchHistory returns a list of matches in descending order,
         # going back in time.
-        sleep(1.0)
+        sleep(0.1)
         logger.debug('Doing GMH query for start_at_match_id=%s' % start_match_id)
-        gmh = api.get_match_history(start_at_match_id=start_match_id,
-                                    skill=3,
-                                    game_mode=2,
-                                    min_players=10)['result']
-        error_code = gmh['status']
-        matches = gmh['matches']
+        for mode in valid_mode:
+            start_match_id = mode_start_id[mode]
+            gmh = api.get_match_history(start_at_match_id=start_match_id,
+                                        skill=2,
+                                        game_mode=mode,
+                                        min_players=10)['result']
+            error_code = gmh['status']
+            matches = gmh['matches']
 
-        if error_code is not 1:
-            msg = 'GMH query at match_id %s had error code %s. Retrying.' % (start_match_id, error_code)
-            logger.debug(msg)
-            continue
+            if error_code is not 1:
+                msg = 'GMH query at match_id %s had error code %s. Retrying.' % (start_match_id, error_code)
+                logger.debug(msg)
+                continue
 
-        if len(matches) is 0:
-            logger.debug('Finished processing all 500 most recent matches.')
-            exit(0)
-
-        for match in matches:
-            match_id = match['match_id']
-
-            if match_collection.find_one({'match_id':match_id}) != None:
-                logger.debug('Encountered match %s already in database, exiting.' % match_id)
+            if len(matches) is 0:
+                logger.debug('Finished processing all 500 most recent matches.')
                 exit(0)
 
-            sleep(1.0)
-            process_match_details(match_id)
+            for match in matches:
+                match_id = match['match_id']
 
-        last_match_id = matches[-1]['match_id']
-        logger.debug('Match_id of last match of GMH query: %s' % last_match_id)
-        # We don't want to record the last match twice, so subtract 1
-        start_match_id = last_match_id - 1
+                if match_collection.find_one({'match_id':match_id}) != None:
+                    logger.debug('Encountered match %s already in database, exiting.' % match_id)
+                    exit(0)
+
+                sleep(1.0)
+                process_match_details(match_id)
+
+            last_match_id = matches[-1]['match_id']
+            logger.debug('Match_id of last match of GMH query: %s' % last_match_id)
+            # We don't want to record the last match twice, so subtract 1
+            start_match_id = last_match_id - 1
+            mode_start_id[mode] = start_match_id
 
 if __name__ == '__main__':
     p = argparse.ArgumentParser(description='Bot for collecting data from 500 most recent DOTA2 matches')
